@@ -590,6 +590,51 @@ Watermark.TextColor3 = Theme.Text
 Watermark.Font = Enum.Font.GothamMedium
 Watermark.TextSize = 13
 Watermark.AutoButtonColor = false
+
+local InitPremiumTab, InitAutoTab, InitMiscTab, InitShopTab, InitChatTab, InitSettingsTab
+local TabBootstrapQueue = {}
+local function QueueTabModule(moduleName, initFn, moduleFile)
+    table.insert(TabBootstrapQueue, {Name = moduleName, Init = initFn, File = moduleFile})
+end
+
+local function RunTabBootstrapQueue()
+    for _, moduleData in ipairs(TabBootstrapQueue) do
+        if LoadingText then
+            LoadingText.Text = string.format("Downloading %s", moduleData.Name)
+        end
+        task.wait(0.08)
+
+        local initToRun = moduleData.Init
+        if moduleData.File and type(readfile) == "function" and type(loadstring) == "function" then
+            local loaded = pcall(function()
+                local chunk = loadstring(readfile(moduleData.File))
+                if type(chunk) == "function" then
+                    local moduleFactory = chunk()
+                    if type(moduleFactory) == "function" then
+                        initToRun = function()
+                            moduleFactory({
+                                InitPremiumTab = InitPremiumTab,
+                                InitAutoTab = InitAutoTab,
+                                InitMiscTab = InitMiscTab,
+                                InitShopTab = InitShopTab,
+                                InitChatTab = InitChatTab,
+                                InitSettingsTab = InitSettingsTab,
+                            })
+                        end
+                    end
+                end
+            end)
+            if not loaded then
+                initToRun = moduleData.Init
+            end
+        end
+
+        local ok, err = pcall(initToRun)
+        if not ok then
+            warn("[cx.farm] Failed loading module", moduleData.Name, err)
+        end
+    end
+end
 Watermark.Active = true 
 Watermark.Parent = ScreenGui
 Instance.new("UICorner", Watermark).CornerRadius = UDim.new(0, 4)
@@ -2607,7 +2652,7 @@ for _, md in ipairs(MainTabs) do
     end)
 end
 
-do
+InitChatTab = function()
     local ST_GlobalChat = CreateSubTab(M_Chat, "Global Chat", 1)
     local S_ChatBox = CreateContainer(ST_GlobalChat, "LIVE SCRIPT CHAT (chat can be slow!)", 1)
 
@@ -2789,7 +2834,7 @@ do
     end)
 end
 
-do
+InitPremiumTab = function()
     local ST_PremOverview = CreateSubTab(M_Premium, "Overview", 1)
     
     local S_PremTools = CreateContainer(ST_PremOverview, "PTHT & WORLD BUILDER", 1)
@@ -2869,7 +2914,7 @@ do
 
 end
 
-do
+InitAutoTab = function()
     local ST_AutoFarm = CreateSubTab(M_Auto, "Auto Farm", 1)
     local ST_World = CreateSubTab(M_Auto, "World Nuker", 2)
 
@@ -3067,7 +3112,7 @@ do
     end
 end
 
-do
+InitMiscTab = function()
     local ST_Character = CreateSubTab(M_Misc, "Character", 1)
     local ST_WorldStats = CreateSubTab(M_Misc, "World Statistics", 2)
     local ST_Inventory = CreateSubTab(M_Misc, "Inventory", 3)
@@ -3564,7 +3609,7 @@ do
     end)
 end
 
-do
+InitShopTab = function()
     local ST_ShopOverview = CreateSubTab(M_Shop, "Overview", 1)
 
     local S_Catalog = CreateContainer(ST_ShopOverview, "SHOP CATALOG", 1)
@@ -3895,7 +3940,7 @@ do
     end)
 end
 
-do
+InitSettingsTab = function()
     local ST_Configs = CreateSubTab(M_Settings, "Configs", 1)
     local ST_Keybinds = CreateSubTab(M_Settings, "Keybinds", 2)
     local ST_Performance = CreateSubTab(M_Settings, "Performance", 3)
@@ -4489,7 +4534,15 @@ end
 
 task.spawn(function()
     task.wait(0.2)
-    if MainTabs and MainTabs[2] then
+    QueueTabModule("Chat", InitChatTab, "tabs/chat.lua")
+QueueTabModule("Premium", InitPremiumTab, "tabs/premium.lua")
+QueueTabModule("Auto", InitAutoTab, "tabs/auto.lua")
+QueueTabModule("Misc", InitMiscTab, "tabs/misc.lua")
+QueueTabModule("Shop", InitShopTab, "tabs/shop.lua")
+QueueTabModule("Settings", InitSettingsTab, "tabs/settings.lua")
+RunTabBootstrapQueue()
+
+if MainTabs and MainTabs[2] then
         SelectMainTab(MainTabs[2])
     end
 end)
