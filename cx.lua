@@ -592,6 +592,7 @@ Watermark.TextSize = 13
 Watermark.AutoButtonColor = false
 
 local InitPremiumTab, InitAutoTab, InitMiscTab, InitShopTab, InitChatTab, InitSettingsTab
+local TabModulesBaseUrl = "https://raw.githubusercontent.com/cxdoesitallsys/cxcaw/refs/heads/main/tabs/"
 local TabBootstrapQueue = {}
 local function QueueTabModule(moduleName, initFn, moduleFile)
     table.insert(TabBootstrapQueue, {Name = moduleName, Init = initFn, File = moduleFile})
@@ -605,27 +606,43 @@ local function RunTabBootstrapQueue()
         task.wait(0.08)
 
         local initToRun = moduleData.Init
-        if moduleData.File and type(readfile) == "function" and type(loadstring) == "function" then
-            local loaded = pcall(function()
-                local chunk = loadstring(readfile(moduleData.File))
-                if type(chunk) == "function" then
-                    local moduleFactory = chunk()
-                    if type(moduleFactory) == "function" then
-                        initToRun = function()
-                            moduleFactory({
-                                InitPremiumTab = InitPremiumTab,
-                                InitAutoTab = InitAutoTab,
-                                InitMiscTab = InitMiscTab,
-                                InitShopTab = InitShopTab,
-                                InitChatTab = InitChatTab,
-                                InitSettingsTab = InitSettingsTab,
-                            })
+        if moduleData.File and type(loadstring) == "function" then
+            local moduleSource = nil
+
+            if type(readfile) == "function" then
+                pcall(function()
+                    moduleSource = readfile(moduleData.File)
+                end)
+            end
+
+            if not moduleSource and type(game.HttpGet) == "function" then
+                pcall(function()
+                    moduleSource = game:HttpGet(TabModulesBaseUrl .. moduleData.File:gsub("^tabs/", ""))
+                end)
+            end
+
+            if moduleSource and moduleSource ~= "" then
+                local loaded = pcall(function()
+                    local chunk = loadstring(moduleSource)
+                    if type(chunk) == "function" then
+                        local moduleFactory = chunk()
+                        if type(moduleFactory) == "function" then
+                            initToRun = function()
+                                moduleFactory({
+                                    InitPremiumTab = InitPremiumTab,
+                                    InitAutoTab = InitAutoTab,
+                                    InitMiscTab = InitMiscTab,
+                                    InitShopTab = InitShopTab,
+                                    InitChatTab = InitChatTab,
+                                    InitSettingsTab = InitSettingsTab,
+                                })
+                            end
                         end
                     end
+                end)
+                if not loaded then
+                    initToRun = moduleData.Init
                 end
-            end)
-            if not loaded then
-                initToRun = moduleData.Init
             end
         end
 
